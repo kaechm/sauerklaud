@@ -4,9 +4,6 @@
 HOST = "localhost"
 PORT = 4223
 
-UIDdualbutton = "vE5" # Change XYZ to the UID of your Dual Button Bricklet
-UIDpiezo = "sEb" # Change XYZ to the UID of your Piezo Speaker Bricklet
-UIDimu = "6jGgmd" # Change XXYYZZ to the UID of your IMU Brick 2.0
 
 from tinkerforge.ip_connection import IPConnection
 from tinkerforge.bricklet_dual_button import BrickletDualButton
@@ -16,6 +13,7 @@ from tinkerforge.brick_imu_v2 import BrickIMUV2
 import paho.mqtt.client as mqtt
 from math import sqrt
 import time
+import private_settings as pset
 
 # Callback function for state changed callback
 def cb_state_changed(button_l, button_r, led_l, led_r):
@@ -49,19 +47,16 @@ def cb_state_changed(button_l, button_r, led_l, led_r):
 
     client.publish('dog/activity', payload='button')
 
-
-
-
 if __name__ == "__main__":
     # Create IP connection
     ipcon = IPConnection()
     
     # CREATE DEVICE OBJECTS #########################################
     # Create BUTTON device object
-    db = BrickletDualButton(UIDdualbutton, ipcon)
+    db = BrickletDualButton(pset.UIDdualbutton, ipcon)
     # Create PIEZO SPEAKER device object
-    ps = BrickletPiezoSpeaker(UIDpiezo, ipcon) # Create device object
-    imu = BrickIMUV2(UIDimu, ipcon) # Create device object
+    ps = BrickletPiezoSpeaker(pset.UIDpiezo, ipcon) # Create device object
+    imu = BrickIMUV2(pset.UIDimu, ipcon) # Create device object
 
     # Connect to brickd
     ipcon.connect(HOST, PORT)
@@ -79,30 +74,30 @@ if __name__ == "__main__":
     # Register state changed callback to function cb_state_changed
     db.register_callback(db.CALLBACK_STATE_CHANGED, cb_state_changed)
 
-    ticks = time.time(); # Anz. Sekunden
+    ticks = time.time() # Anz. Sekunden
     
-    beschleunigung = 0.0 # Lin.Beschleunigung (max. in letzter Zeiteinheit)
+    beschleunigung = 0.2 # Lin.Beschleunigung (max. in letzter Zeiteinheit)
 
-	# Main loop
+    # Main loop
     while True:
-    	
+
         # Lineare Beschleunigung
         a, b, c = imu.get_linear_acceleration()
-    	betrag = sqrt(pow(a, 2)+pow(b, 2)+pow(c, 2))
-    	if betrag > beschleunigung:
-    	    beschleunigung = betrag
-    	
-    	if time.time() > ticks+1.0:
-    	    # Reset
-    	    #print 'Max Beschleunigung letzte Sekunde: ', beschleunigung, ' (', ticks, ')'
-    	    
-    	    if beschleunigung > 1000:
+        betrag = sqrt(pow(a, 2)+pow(b, 2)+pow(c, 2))
+        if betrag > beschleunigung:
+            beschleunigung = betrag
+
+        if time.time() > ticks+1.0:
+            # Reset
+            #print 'Max Beschleunigung letzte Sekunde: ', beschleunigung, ' (', ticks, ')'
+
+            if beschleunigung > 1000:
                 # Event ausloesen
-    	        ps.beep(50, 2000) # 200ms beep 1kHz
-    	        client.publish('dog/activity', payload='activity')
-    	    
-    	    ticks = time.time()
-    	    beschleunigung = 0.0
-    
-    
+                ps.beep(50, 2000) # 200ms beep 1kHz
+                client.publish('dog/hello', payload='activity')
+
+            ticks = time.time()
+            beschleunigung = 0.0
+
+
     ipcon.disconnect()
