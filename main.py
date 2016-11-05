@@ -3,7 +3,6 @@
 
 HOST = "localhost"
 PORT = 4223
-dog_name = 'sierra'
 
 from tinkerforge.ip_connection import IPConnection
 from tinkerforge.bricklet_dual_button import BrickletDualButton
@@ -22,40 +21,26 @@ from socket import gethostbyname,gaierror,error
 
 # Callback function for state changed callback
 def cb_state_changed(button_l, button_r, led_l, led_r):
-    
-    #if button_l == DualButton.BUTTON_STATE_PRESSED:
-    #    print("Left button pressed")
-    #else:
-    #    print("Left button released")
-    #
-    #if button_r == DualButton.BUTTON_STATE_PRESSED:
-    #    print("Right button pressed")
-    #else:
-    #    print("Right button released")
-
     print("button pressed")
     ps.beep(20, 500) # 200ms beep 1kHz
-    #print("beeped")
-    
-    
-    # Orientierung
-    w, x, y, z = imu.get_quaternion()
-    #print("w: {:.02f}, x: {:.02f}, y: {:.02f}, z: {:.02f}"
-    #      .format(w/16383.0, x/16383.0, y/16383.0, z/16383.0))
     
     # Temperatur
     temp = imu.get_temperature()
-	
-    #print 'Temperatur: ',temp
 
-    #print 'Lineare Beschleunigung: ', a, ', ', b, ', ', c
     status = db.get_button_state()
-    print(status[0])
-    print(type(status[0]))
-    print(status)
-    print(type(status))
-    # client.publish('dog/activity', payload='button')
-    client.publish('dog/activity', status[0])
+    temp = imu.get_temperature()
+    barking = db.get_button_state()
+    status = {
+        'name': pset.dog_name,
+        'location_long': pset.dog_location_long,
+        'location_lat': pset.dog_location_lat,
+        'acceleration': betrag,
+        'barking': barking[0],
+        'temp': temp
+    }
+
+    publish_values('dog/hello', status)
+    client.publish('dog/hello', payload='button')
 
 
 def publish_values(topic, kwargs):
@@ -107,20 +92,20 @@ if __name__ == "__main__":
     while True:
         
         # Connecting to Cloud
-        print 'Trying to connect...'
+        print('Trying to connect...')
         try:
             client.connect('m21.cloudmqtt.com', 13840, 60)
         except gaierror:
             time.sleep(3)
-            print 'Connection error, trying again... (3 sec)'
+            print('Connection error, trying again... (3 sec)')
             continue
-    	
-    	# wir sind connected
-    	ticks_connected = time.time();
-    	print 'Connected!'  
+
+        # wir sind connected
+        ticks_connected = time.time()
+        print('Connected!')
         
-    	# Sensing loop
-    	while True:
+        # Sensing loop
+        while True:
         
             # Lineare Beschleunigung
             a, b, c = imu.get_linear_acceleration()
@@ -130,13 +115,27 @@ if __name__ == "__main__":
 
             # SEND ACCELERATION
             if time.time() > ticks+0.1:
-                # Reset
-                #print 'Max Beschleunigung letzte Sekunde: ', beschleunigung, ' (', ticks, ')'
 
                 if beschleunigung > 1000:
-                    # Event ausloesen
+                    temp = imu.get_temperature()
+                    w, x, y, z = imu.get_quaternion()
+                    barking = db.get_button_state()
+                    # client.publish('dog/activity', payload='button')
+                    # client.publish('dog/activity', status[0])
+                    status = {
+                        'name': pset.dog_name,
+                        'location_long': pset.dog_location_long,
+                        'location_lat': pset.dog_location_lat,
+                        'acceleration': betrag,
+                        'barking': barking[0],
+                        'temp': temp
+                    }
+
+                    # print(status)
+                    publish_values('dog/status', status)
+                    # promt user with a 'beeep'
                     ps.beep(50, 2000) # 200ms beep 1kHz
-                    client.publish('dog/activity', payload='activity')
+
 
                 ticks = time.time()
                 w, x, y, z = imu.get_quaternion()
@@ -144,16 +143,21 @@ if __name__ == "__main__":
 
             # SEND STATUS
             if time.time() > ticks_status+10.0:
-
                 temp = imu.get_temperature()
                 w, x, y, z = imu.get_quaternion()
-                status = {'name':dog_name, 'w': w, 'x': x, 'y': y, 'z': z, 'temp': temp}
-                # print(status)
-                publish_values('dog/activity', status)
+                barking = db.get_button_state()
+                status = {
+                    'name': pset.dog_name,
+                    'location_long': pset.dog_location_long,
+                    'location_lat': pset.dog_location_lat,
+                    'acceleration': betrag,
+                    'barking': barking[0],
+                    'temp': temp
+                }
 
-                # print('temperature = ' + str(status))
-                # print(type(status))
-                # client.publish('dog/status', payload=status)
+                # print(status)
+                publish_values('dog/status', status)
+
                 ticks_status = time.time()
 
             # CONNECTED?
@@ -161,11 +165,11 @@ if __name__ == "__main__":
                 ticks_connected = time.time()
                 try:
                     test = client.socket().recv(1)
-                except: # except error:
+                # except error:
+                except:
                     try:
                         client.reconnect()
                     except gaierror:
-                        print 'Connection lost, trying to reconnect...'
-
+                        print('Connection lost, trying to reconnect...')
 
     ipcon.disconnect()
