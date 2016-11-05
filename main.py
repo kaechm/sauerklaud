@@ -3,7 +3,7 @@
 
 HOST = "localhost"
 PORT = 4223
-
+dog_name = 'sierra'
 
 from tinkerforge.ip_connection import IPConnection
 from tinkerforge.bricklet_dual_button import BrickletDualButton
@@ -14,6 +14,7 @@ import paho.mqtt.client as mqtt
 from math import sqrt
 import time
 import private_settings as pset
+import json
 
 # Callback function for state changed callback
 def cb_state_changed(button_l, button_r, led_l, led_r):
@@ -43,9 +44,31 @@ def cb_state_changed(button_l, button_r, led_l, led_r):
 	
     #print 'Temperatur: ',temp
 
-    #print 'Lineare Beschleunigung: ', a, ', ', b, ', ', c 
+    #print 'Lineare Beschleunigung: ', a, ', ', b, ', ', c
+    status = db.get_button_state()
+    print(status[0])
+    print(type(status[0]))
+    print(status)
+    print(type(status))
+    # client.publish('dog/activity', payload='button')
+    client.publish('dog/activity', status[0])
 
-    client.publish('dog/activity', payload='button')
+
+def publish_values(topic, kwargs):
+    payload = {'_timestamp': time.time()}
+
+    for key, value in kwargs.items():
+        payload[key] = value
+
+    publish_as_json(topic, payload, retain=True)
+
+
+def publish_as_json(topic, payload, *args, **kwargs):
+    client.publish(
+        topic,
+        json.dumps(payload, separators=(',', ':')),
+        *args, **kwargs
+    )
 
 if __name__ == "__main__":
     # Create IP connection
@@ -67,16 +90,15 @@ if __name__ == "__main__":
     client = mqtt.Client()
     client.username_pw_set('miro','1234')
     client.connect('m21.cloudmqtt.com', 13840, 60)
-    
-
-
 
     # Register state changed callback to function cb_state_changed
+
     db.register_callback(db.CALLBACK_STATE_CHANGED, cb_state_changed)
 
     ticks = time.time() # Anz. Sekunden
+    ticks_status = time.time()
     
-    beschleunigung = 0.2 # Lin.Beschleunigung (max. in letzter Zeiteinheit)
+    beschleunigung = 0.0 # Lin.Beschleunigung (max. in letzter Zeiteinheit)
 
     # Main loop
     while True:
@@ -94,10 +116,24 @@ if __name__ == "__main__":
             if beschleunigung > 1000:
                 # Event ausloesen
                 ps.beep(50, 2000) # 200ms beep 1kHz
-                client.publish('dog/hello', payload='activity')
+                client.publish('dog/activity', payload='activity')
 
             ticks = time.time()
+            w, x, y, z = imu.get_quaternion()
             beschleunigung = 0.0
+
+        if time.time() > ticks_status+10.0:
+
+            temp = imu.get_temperature()
+            w, x, y, z = imu.get_quaternion()
+            status = {'name':dog_name, 'w': w, 'x': x, 'y': y, 'z': z, 'temp': temp}
+            # print(status)
+            publish_values('dog/status', status)
+
+            # print('temperature = ' + str(status))
+            # print(type(status))
+            # client.publish('dog/status', payload=status)
+            ticks_status = time.time()
 
 
     ipcon.disconnect()
