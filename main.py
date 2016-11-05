@@ -44,7 +44,7 @@ def cb_state_changed(button_l, button_r, led_l, led_r):
 
 
 def publish_values(topic, kwargs):
-    payload = {'_timestamp': time.time()}
+    payload = {'timestamp': time.time()}
 
     for key, value in kwargs.items():
         payload[key] = value
