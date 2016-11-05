@@ -15,6 +15,10 @@ from math import sqrt
 import time
 import private_settings as pset
 import json
+import errno
+from socket import gethostbyname,gaierror,error
+
+
 
 # Callback function for state changed callback
 def cb_state_changed(button_l, button_r, led_l, led_r):
@@ -85,55 +89,83 @@ if __name__ == "__main__":
     ipcon.connect(HOST, PORT)
     # Don't use device before ipcon is connected
 
-
     # Connect to Cloud
     client = mqtt.Client()
     client.username_pw_set('miro','1234')
-    client.connect('m21.cloudmqtt.com', 13840, 60)
+    #client.connect('m21.cloudmqtt.com', 13840, 60)
 
     # Register state changed callback to function cb_state_changed
-
     db.register_callback(db.CALLBACK_STATE_CHANGED, cb_state_changed)
 
-    ticks = time.time() # Anz. Sekunden
+    ticks = time.time() # Anz. Sekunden für activity timer
+    ticks_connected = time.time(); # Anz. Sekunden für connection reset timer
     ticks_status = time.time()
     
     beschleunigung = 0.0 # Lin.Beschleunigung (max. in letzter Zeiteinheit)
 
     # Main loop
     while True:
+        
+        # Connecting to Cloud
+        print 'Trying to connect...'
+        try:
+            client.connect('m21.cloudmqtt.com', 13840, 60)
+        except gaierror:
+            time.sleep(3)
+            print 'Connection error, trying again... (3 sec)'
+            continue
+    	
+    	# wir sind connected
+    	ticks_connected = time.time();
+    	print 'Connected!'  
+        
+    	# Sensing loop
+    	while True:
+        
+            # Lineare Beschleunigung
+            a, b, c = imu.get_linear_acceleration()
+            betrag = sqrt(pow(a, 2)+pow(b, 2)+pow(c, 2))
+            if betrag > beschleunigung:
+                beschleunigung = betrag
 
-        # Lineare Beschleunigung
-        a, b, c = imu.get_linear_acceleration()
-        betrag = sqrt(pow(a, 2)+pow(b, 2)+pow(c, 2))
-        if betrag > beschleunigung:
-            beschleunigung = betrag
+            # SEND ACCELERATION
+            if time.time() > ticks+0.1:
+                # Reset
+                #print 'Max Beschleunigung letzte Sekunde: ', beschleunigung, ' (', ticks, ')'
 
-        if time.time() > ticks+1.0:
-            # Reset
-            #print 'Max Beschleunigung letzte Sekunde: ', beschleunigung, ' (', ticks, ')'
+                if beschleunigung > 1000:
+                    # Event ausloesen
+                    ps.beep(50, 2000) # 200ms beep 1kHz
+                    client.publish('dog/activity', payload='activity')
 
-            if beschleunigung > 1000:
-                # Event ausloesen
-                ps.beep(50, 2000) # 200ms beep 1kHz
-                client.publish('dog/activity', payload='activity')
+                ticks = time.time()
+                w, x, y, z = imu.get_quaternion()
+                beschleunigung = 0.0
 
-            ticks = time.time()
-            w, x, y, z = imu.get_quaternion()
-            beschleunigung = 0.0
+            # SEND STATUS
+            if time.time() > ticks_status+10.0:
 
-        if time.time() > ticks_status+10.0:
+                temp = imu.get_temperature()
+                w, x, y, z = imu.get_quaternion()
+                status = {'name':dog_name, 'w': w, 'x': x, 'y': y, 'z': z, 'temp': temp}
+                # print(status)
+                publish_values('dog/activity', status)
 
-            temp = imu.get_temperature()
-            w, x, y, z = imu.get_quaternion()
-            status = {'name':dog_name, 'w': w, 'x': x, 'y': y, 'z': z, 'temp': temp}
-            # print(status)
-            publish_values('dog/status', status)
+                # print('temperature = ' + str(status))
+                # print(type(status))
+                # client.publish('dog/status', payload=status)
+                ticks_status = time.time()
 
-            # print('temperature = ' + str(status))
-            # print(type(status))
-            # client.publish('dog/status', payload=status)
-            ticks_status = time.time()
+            # CONNECTED?
+            if time.time() > ticks_connected+6.0:
+                ticks_connected = time.time()
+                try:
+                    test = client.socket().recv(1)
+                except: # except error:
+                    try:
+                        client.reconnect()
+                    except gaierror:
+                        print 'Connection lost, trying to reconnect...'
 
 
     ipcon.disconnect()
