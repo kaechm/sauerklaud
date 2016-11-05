@@ -95,9 +95,11 @@ if __name__ == "__main__":
         print('Trying to connect...')
         try:
             client.connect('m21.cloudmqtt.com', 13840, 60)
+            imu.leds_on()
         except gaierror:
             time.sleep(3)
             print('Connection error, trying again... (3 sec)')
+            imu.leds_off()
             continue
 
         # wir sind connected
@@ -169,7 +171,9 @@ if __name__ == "__main__":
                 except:
                     try:
                         client.reconnect()
+                        imu.leds_on()
                     except gaierror:
                         print('Connection lost, trying to reconnect...')
+                        imu.leds_off()
 
     ipcon.disconnect()
