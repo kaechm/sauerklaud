@@ -115,7 +115,7 @@ if __name__ == "__main__":
             if betrag > beschleunigung:
                 beschleunigung = betrag
 
-            # SEND ACCELERATION
+            # SEND ACCELERATION (DO NOT PUBLISH!)
             if time.time() > ticks+0.1:
 
                 if beschleunigung > 1000:
@@ -134,7 +134,7 @@ if __name__ == "__main__":
                     }
 
                     # print(status)
-                    publish_values('dog/status', status)
+                    # publish_values('dog/status', status)
                     # promt user with a 'beeep'
                     ps.beep(50, 2000) # 200ms beep 1kHz
 
@@ -144,7 +144,7 @@ if __name__ == "__main__":
                 beschleunigung = 0.0
 
             # SEND STATUS
-            if time.time() > ticks_status+10.0:
+            if time.time() > ticks_status+1.0:
                 temp = imu.get_temperature()
                 w, x, y, z = imu.get_quaternion()
                 barking = db.get_button_state()
